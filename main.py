@@ -3,20 +3,22 @@ from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import (Motor, TouchSensor, ColorSensor,
                                  InfraredSensor, UltrasonicSensor, GyroSensor)
 from pybricks.parameters import Port, Stop, Direction, Button, Color
-from pybricks.tools import wait, StopWatch, DataLog
+from pybricks.tools import wait, StopWatch
 from pybricks.robotics import DriveBase
 from pybricks.media.ev3dev import SoundFile, ImageFile
-from pybricks.messaging import BluetoothMailboxServer, TextMailbox
+from pybricks.messaging import BluetoothMailboxClient, TextMailbox
 
-import time 
+import time
 import urequests
 import utime
 import ujson
 import ubinascii
+import math
 
 # Write your program here
 ev3 = EV3Brick()
 ev3.speaker.beep()
+
 
 Key = 'X2OxHa5uX5Tls6yttSOgLcOFh62H_7HKZayHGAcLYE'
 
@@ -58,81 +60,96 @@ def Create_SL(Tag, Type):
      except Exception as e:
           print(e)
 
+#open file
+file = open('driver1.csv','a+')
+file.write(" First Line")
 
+#Initialize Motors
 
-gyroright = GyroSensor(Port.S1)
-gyroleft = GyroSensor(Port.S3)
+MotorR = Motor(Port.D)
+MotorL = Motor(Port.A)
+touch = TouchSensor(Port.S1)
 
-gyroright.reset_angle(0)
-gyroleft.reset_angle(0)
+anglespdright=0
+anglespdleft=0
+motorspdright = 0
+motorspdleft = 0
+angles = ''
 
-
-touch1 = TouchSensor(Port.S2)
-touch2 = TouchSensor(Port.S4)
-
-print('Waiting for Right Touch Input to Start')
-while(touch1.pressed() is False):
+print('Waiting for Touch Input to Start')
+while(touch.pressed() is False):
      wait(50)
 
-#Pairing for bluetooth, must pair the devices ebeforehand but not connect
-server = BluetoothMailboxServer()
-mbox = TextMailbox('greeting',server)
+SERVER = 'ev3dev'
+client = BluetoothMailboxClient()
+mbox = TextMailbox('greeting', client)
 
-print('waiting for connection ...')
-server.wait_for_connection()
+
+
+print('establishing connection...')
+client.connect(SERVER)
 print('connected!')
 wait(1000)
-#mbox.send('Start') #This is the line that sends a string to the other ev3
+#mbox.send('hello!')
+#print(mbox.read())
 
+anglestring = ''
+angles = ''
+t = 0
+tprev = 0
+prevangleright=0
+prevangleleft=0
 
-angleleft = 0
-angleright = 0 
-anglespeedleft = 0
-anglespeedright = 0
-deltatime = 0
-
-touchleft = False
-touchright = False
-f = open('controller1.csv', "a+")
-#data = DataLog('time','angleright','angleleft','anglespeedright','anglespeedleft')
-
-starttime = time.time()
 while(True):
+     anglestring = mbox.read()
 
-     touchright = touch1.pressed()
-     touchleft = touch2.pressed()
-     if(touchright is True and touchleft is True):
-          gyroright.reset_angle(0)
-          gyroleft.reset_angle(0)
-     angleright = gyroright.angle()
-     angleleft = gyroleft.angle()
-     wait(100)
-     if(angleright < 5 and angleright > -5):
-          angleright = 0
-     if(angleleft < 5 and angleleft > -5):
-          angleleft = 0
+     anglestring = str(anglestring)
+     #print("string is ",anglestring)
 
+     if len(anglestring.split()) is 1 :
+          anglestring = "0 0 0"
+
+
+     angles = anglestring.split()
+     #print("angles are",angles)
+     t = round(float(angles[0]),3)
+     #print(t)
+     angleright = int(angles[1])
+     angleleft = int(angles[2])
      
-     
-     mbox.send(str(deltatime) + " " + str(angleright)+" "+str(angleleft))
-     print(str(deltatime) + " " + str(angleright)+" "+str(angleleft))
-     currenttime = time.time()
-     deltatime = currenttime-starttime
 
+     maxspd=400
 
-     f.write(str(deltatime) + ','+ str(angleright) +","+ str(angleleft) + "," + str(anglespeedright) + "," + str(anglespeedleft))
-     #print("Processing Time: ", deltatime)
-     #print("Touch Left: ",touchleft)
-     #print("Touch Right:gyro ",touchright)
-     print("Angle Left: ", angleleft)
-     print("Angle Right: ", angleright)
-     #print("Angular Speed Left: ", anglespeedleft)
-     #print("Angular Speed Right: ", anglespeedright)
+     #controller for speed
      
-f.close()
+     motorspdright = maxspd*((angleright-90)/90 + 1)
+
+     motorspdleft = maxspd*((angleleft-90)/90 + 1)
+     
+     if(motorspdright > maxspd):
+          motorspdright = maxspd
+     if(motorspdright <-maxspd):
+          motorspdright = -maxspd
+     if(motorspdleft > maxspd):
+          motorspdleft=maxspd
+     if(motorspdleft < -maxspd):
+          motorspdleft=-maxspd
+
+     print("right ",motorspdright)
+     print("left ",motorspdleft)
+
+     if(t is not tprev):
+          file.write(str(t)+","+str(angleright)+","+str(angleleft) + ","+str(motorspdright)+","+str(motorspdleft)+"\n")
+     #a
+     tprev=t
+     prevangleright = angleright
+     prevangleleft = angleleft
+
+     #Write to Motors
+     MotorR.run(-motorspdright)
+     MotorL.run(motorspdleft)
+
+   
+file.close()
     
-
-
-
-
-
+    
